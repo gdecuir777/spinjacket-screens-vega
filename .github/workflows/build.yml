@@ -7,8 +7,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    env:
-      APPLY_WEBVIEW: ${{ vars.APPLY_WEBVIEW || 'false' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -25,31 +23,34 @@ jobs:
           curl -fsSL https://sdk-installer.vega.labcollab.net/get_vvm.sh | bash || true
           source "$HOME/vega/env" 2>/dev/null || true
           export PATH="$HOME/vega/bin:$PATH"
-          echo "=== Available remote SDK versions ==="
-          vega sdk list-remote || true
-          echo "=== Active vega ==="
           vega --version || true
           set -eo pipefail
-          echo "=== Generating starter app (helloWorld) ==="
+
+          echo "=== Generating starter app ==="
           rm -rf app
           vega project generate --template helloWorld --name SpinJacketScreens --packageId com.spinjacket.screens --outputDir app
-          echo "=== File tree ==="
-          find app -type f -not -path '*/node_modules/*' | sort
-          if [ "${APPLY_WEBVIEW}" = "true" ] && [ -f webview-app/App.tsx ]; then
-            cp webview-app/App.tsx app/src/App.tsx
-            ( cd app && npm install @amazon-devices/webview@latest || true )
-          fi
-          echo "=== Building ==="
+
+          echo "=== Applying the SpinJacket /tv WebView ==="
+          cp webview-app/App.tsx app/src/App.tsx
+          sed -i 's/^title = .*/title = "SpinJacket Screens"/' app/manifest.toml || true
+
+          echo "=== Adding the WebView package ==="
           cd app
+          echo "--- available @amazon-devices/webview versions ---"
+          npm view @amazon-devices/webview versions || true
+          npm install @amazon-devices/webview@~4.0.0
+
+          echo "=== Building ==="
           vega project update-manifest --os-min 2.0 --os-version 2.0 || true
           vega project install --fix || true
           npm install
           vega project doctor || true
           npx react-native build-vega
+
           echo "=== Build output ==="
           find . -name '*.vpkg' -not -path '*/node_modules/*' | sort
 
-      - name: Upload build + source layout
+      - name: Upload build
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -59,5 +60,4 @@ jobs:
             app/manifest.toml
             app/src/**
             app/package.json
-            app/index.*
           if-no-files-found: warn
