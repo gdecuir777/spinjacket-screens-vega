@@ -1,0 +1,73 @@
+name: Build SpinJacket Screens (Vega)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      APPLY_WEBVIEW: ${{ vars.APPLY_WEBVIEW || 'false' }}
+      VEGA_SDK_VERSION: '2.0.10945'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Vega SDK, scaffold, and build
+        shell: bash
+        run: |
+          set -eo pipefail
+          export NONINTERACTIVE=true
+          export SKIP_VVD_INSTALL=true
+          echo "=== Installing Vega SDK (${VEGA_SDK_VERSION}) ==="
+          curl -fsSL https://sdk-installer.vega.labcollab.net/get_vvm.sh | bash
+          source "$HOME/vega/env" 2>/dev/null || true
+          export PATH="$HOME/vega/bin:$PATH"
+          vega --version
+
+          echo "=== Generating starter app (helloWorld template) ==="
+          rm -rf app
+          vega project generate \
+            --template helloWorld \
+            --name SpinJacketScreens \
+            --packageId com.spinjacket.screens \
+            --outputDir app
+
+          echo "=== Generated file tree ==="
+          find app -type f -not -path '*/node_modules/*' | sort
+
+          if [ "${APPLY_WEBVIEW}" = "true" ] && [ -f webview-app/App.tsx ]; then
+            echo "=== PHASE 2: applying the /tv WebView app ==="
+            cp webview-app/App.tsx app/src/App.tsx
+            ( cd app && npm install @amazon-devices/webview@latest || true )
+          else
+            echo "=== PHASE 1: building the stock starter (no WebView yet) ==="
+          fi
+
+          echo "=== Building the Vega app ==="
+          cd app
+          vega project update-manifest --os-min 2.0 --os-version 2.0 || true
+          vega project install --fix || true
+          npm install
+          vega project doctor || true
+          npx react-native build-vega
+
+          echo "=== Build output ==="
+          find . -name '*.vpkg' -not -path '*/node_modules/*' | sort
+
+      - name: Upload build + source layout
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spinjacket-screens-vega
+          path: |
+            app/**/*.vpkg
+            app/manifest.toml
+            app/src/**
+            app/package.json
+            app/index.*
+          if-no-files-found: warn
