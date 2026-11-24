@@ -32,6 +32,7 @@ jobs:
 
           echo "=== Applying the SpinJacket /tv WebView ==="
           cp webview-app/App.tsx app/src/App.tsx
+          cp webview-app/silence.mp3 app/src/silence.mp3
           sed -i 's/^title = .*/title = "SpinJacket Screens"/' app/manifest.toml || true
 
           echo "=== Adding the WebView package ==="
@@ -39,12 +40,16 @@ jobs:
           echo "--- available @amazon-devices/webview versions ---"
           npm view @amazon-devices/webview versions || true
           npm install @amazon-devices/webview@~4.0.0
+          npm install @amazon-devices/react-native-w3cmedia@2.3.4-rn-83
+          npm install @amazon-devices/react-native-async-storage__async-storage@2.1.9000000000-rn-83
 
           echo "=== Building ==="
           vega project update-manifest --os-min 2.0 --os-version 2.0 || true
           vega project install --fix || true
           npm install
           vega project doctor || true
+          echo "=== Keep-awake: add media services to the generated manifest ==="
+          printf '\n[[wants.service]]\nid = "com.amazon.media.server"\n[[wants.service]]\nid = "com.amazon.media.playersession.service"\n[[wants.service]]\nid = "com.amazon.mediametrics.service"\n[[wants.service]]\nid = "com.amazon.mediabuffer.service"\n[[wants.service]]\nid = "com.amazon.mediatransform.service"\n[[wants.service]]\nid = "com.amazon.audio.stream"\n[[wants.service]]\nid = "com.amazon.audio.control"\n' >> manifest.toml
           npx react-native build-vega
 
           echo "=== Build output ==="
