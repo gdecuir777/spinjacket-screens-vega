@@ -19,12 +19,12 @@ jobs:
         run: |
           export NONINTERACTIVE=true
           export SKIP_VVD_INSTALL=true
-          export VEGA_SDK_VERSION=2.0.10945
-          echo "=== Installing Vega SDK 2.0.10945 (pinned; the latest-version lookup was failing) ==="
+          echo "=== Installing latest Vega SDK ==="
           curl -fsSL https://sdk-installer.vega.labcollab.net/get_vvm.sh | bash || true
           source "$HOME/vega/env" 2>/dev/null || true
           export PATH="$HOME/vega/bin:$PATH"
           vega --version || true
+          echo "--- available SDK versions (for pinning if needed) ---"; vega sdk list-remote || true
           set -eo pipefail
 
           echo "=== Generating starter app ==="
