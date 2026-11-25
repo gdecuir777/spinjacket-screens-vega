@@ -51,9 +51,9 @@ jobs:
           vega project doctor || true
           echo "=== Keep-awake: add media services to the generated manifest ==="
           printf '\n[[wants.service]]\nid = "com.amazon.media.server"\n[[wants.service]]\nid = "com.amazon.media.playersession.service"\n[[wants.service]]\nid = "com.amazon.mediametrics.service"\n[[wants.service]]\nid = "com.amazon.mediabuffer.service"\n[[wants.service]]\nid = "com.amazon.mediatransform.service"\n[[wants.service]]\nid = "com.amazon.audio.stream"\n[[wants.service]]\nid = "com.amazon.audio.control"\n' >> manifest.toml
-          echo "=== Bump app version for a unique, upgradable LAT upload ==="
-          CURV=$(grep -m1 -iE '^[[:space:]]*version[[:space:]]*=' manifest.toml | grep -oE '[0-9]+\.[0-9]+' | head -1)
-          sed -i -E "s/^([[:space:]]*version[[:space:]]*=).*/\1 \"${CURV:-1.0}.${GITHUB_RUN_NUMBER}\"/" manifest.toml || true
+          echo "=== Bump MINOR version (Amazon reads the Vega build number from the minor) for a unique, upgradable LAT upload ==="
+          MAJOR=$(grep -m1 -iE '^[[:space:]]*version[[:space:]]*=' manifest.toml | grep -oE '[0-9]+' | head -1)
+          sed -i -E "s/^([[:space:]]*version[[:space:]]*=).*/\1 \"${MAJOR:-0}.${GITHUB_RUN_NUMBER}.0\"/" manifest.toml || true
           grep -iE '^[[:space:]]*version[[:space:]]*=' manifest.toml || true
           npx react-native build-vega
 

@@ -1,0 +1,73 @@
+name: Build SpinJacket Screens (Vega)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Vega SDK, scaffold, and build
+        shell: bash
+        run: |
+          export NONINTERACTIVE=true
+          export SKIP_VVD_INSTALL=true
+          echo "=== Installing latest Vega SDK ==="
+          curl -fsSL https://sdk-installer.vega.labcollab.net/get_vvm.sh | bash || true
+          source "$HOME/vega/env" 2>/dev/null || true
+          export PATH="$HOME/vega/bin:$PATH"
+          vega --version || true
+          echo "--- available SDK versions (for pinning if needed) ---"; vega sdk list-remote || true
+          set -eo pipefail
+
+          echo "=== Generating starter app ==="
+          rm -rf app
+          vega project generate --template helloWorld --name SpinJacketScreens --packageId com.spinjacket.screens --outputDir app
+
+          echo "=== Applying the SpinJacket /tv WebView ==="
+          cp webview-app/App.tsx app/src/App.tsx
+          cp webview-app/silence.mp3 app/src/silence.mp3
+          sed -i 's/^title = .*/title = "SpinJacket Screens"/' app/manifest.toml || true
+
+          echo "=== Adding the WebView package ==="
+          cd app
+          echo "--- available @amazon-devices/webview versions ---"
+          npm view @amazon-devices/webview versions || true
+          npm install @amazon-devices/webview@~4.0.0
+          npm install @amazon-devices/react-native-w3cmedia@2.3.4-rn-83
+          npm install @amazon-devices/react-native-async-storage__async-storage@2.1.9000000000-rn-83
+
+          echo "=== Building ==="
+          vega project update-manifest --os-min 2.0 --os-version 2.0 || true
+          vega project install --fix || true
+          npm install
+          vega project doctor || true
+          echo "=== Keep-awake: add media services to the generated manifest ==="
+          printf '\n[[wants.service]]\nid = "com.amazon.media.server"\n[[wants.service]]\nid = "com.amazon.media.playersession.service"\n[[wants.service]]\nid = "com.amazon.mediametrics.service"\n[[wants.service]]\nid = "com.amazon.mediabuffer.service"\n[[wants.service]]\nid = "com.amazon.mediatransform.service"\n[[wants.service]]\nid = "com.amazon.audio.stream"\n[[wants.service]]\nid = "com.amazon.audio.control"\n' >> manifest.toml
+          echo "=== Bump app version for a unique, upgradable LAT upload ==="
+          CURV=$(grep -m1 -iE '^[[:space:]]*version[[:space:]]*=' manifest.toml | grep -oE '[0-9]+\.[0-9]+' | head -1)
+          sed -i -E "s/^([[:space:]]*version[[:space:]]*=).*/\1 \"${CURV:-1.0}.${GITHUB_RUN_NUMBER}\"/" manifest.toml || true
+          grep -iE '^[[:space:]]*version[[:space:]]*=' manifest.toml || true
+          npx react-native build-vega
+
+          echo "=== Build output ==="
+          find . -name '*.vpkg' -not -path '*/node_modules/*' | sort
+
+      - name: Upload build
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spinjacket-screens-vega
+          path: |
+            app/**/*.vpkg
+            app/manifest.toml
+            app/src/**
+            app/package.json
+          if-no-files-found: warn
